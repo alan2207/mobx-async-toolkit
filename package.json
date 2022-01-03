@@ -14,7 +14,7 @@
     "analyze": "size-limit --why",
     "build": "dts build",
     "lint": "dts lint",
-    "prepare": "dts build",
+    "prepare": "install-peers && dts build",
     "size": "size-limit",
     "start": "dts watch",
     "test": "dts test"
@@ -54,6 +54,7 @@
     "@tsconfig/recommended": "^1.0.1",
     "dts-cli": "^1.1.4",
     "husky": "^7.0.4",
+    "install-peers-cli": "^2.2.0",
     "size-limit": "^7.0.5",
     "tslib": "^2.3.1",
     "typescript": "^4.5.4"

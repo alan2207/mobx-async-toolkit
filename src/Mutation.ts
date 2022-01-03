@@ -51,6 +51,7 @@ export class Mutation<Data = any, Options = any> {
       console.error(error);
       this.setError(JSON.stringify(error));
       this.setStatus(Status.ERROR);
+      return;
     }
   }
 }

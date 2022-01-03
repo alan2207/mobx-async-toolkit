@@ -42,3 +42,7 @@ export class Toolkit {
     return new Mutation<Data, Options>(options);
   }
 }
+
+export const createToolkit = () => {
+  return new Toolkit();
+};

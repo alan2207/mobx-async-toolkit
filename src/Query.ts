@@ -1,6 +1,6 @@
-import { makeAutoObservable } from "mobx";
-import type { QueryCache } from "./QueryCache";
-import { Status } from "./types";
+import { makeAutoObservable } from 'mobx';
+import type { QueryCache } from './QueryCache';
+import { Status } from './types';
 
 export type QueryOptions<Data, Options = any> = {
   fn: (options: Options) => Promise<Data>;

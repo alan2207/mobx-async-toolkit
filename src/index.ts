@@ -1,6 +1,6 @@
-import { Toolkit } from "./Toolkit";
+import { Toolkit } from './Toolkit';
 
-export * from "./types";
+export * from './types';
 
 export const createToolkit = () => {
   return new Toolkit();

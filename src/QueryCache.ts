@@ -1,4 +1,4 @@
-import { makeAutoObservable } from "mobx";
+import { makeAutoObservable } from 'mobx';
 
 type QueryCacheEntry = {
   root?: string;
@@ -66,7 +66,7 @@ export class QueryCache {
 
     if (base && !options) {
       this.entries[baseKey] = {
-        root: "",
+        root: '',
         children: {},
       };
 

@@ -1,5 +1,5 @@
-import { makeAutoObservable } from "mobx";
-import { Status } from "./types";
+import { makeAutoObservable } from 'mobx';
+import { Status } from './types';
 
 export type MutationOptions<Data, Options = any> = {
   fn: (options: Options) => Promise<Data>;

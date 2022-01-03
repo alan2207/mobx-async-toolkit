@@ -1,9 +1,9 @@
-import { makeAutoObservable } from "mobx";
-import { Mutation, MutationOptions } from "./Mutation";
-import { Query, QueryOptions } from "./Query";
-import { QueryCache } from "./QueryCache";
+import { makeAutoObservable } from 'mobx';
+import { Mutation, MutationOptions } from './Mutation';
+import { Query, QueryOptions } from './Query';
+import { QueryCache } from './QueryCache';
 
-export * from "./types";
+export * from './types';
 
 export class Toolkit {
   queries: Record<string, Query> = {};

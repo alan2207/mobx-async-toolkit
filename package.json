@@ -1,6 +1,6 @@
 {
   "name": "mobx-async-toolkit",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "license": "MIT",
   "author": "Alan",
   "main": "dist/index.js",

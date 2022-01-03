@@ -1,26 +1,22 @@
 import { makeAutoObservable } from 'mobx';
-import { Status } from './types';
-
-export type MutationOptions<Data, Options = any> = {
-  fn: (options: Options) => Promise<Data>;
-};
+import { Status, MutationOptions } from './types';
 
 export class Mutation<Data = any, Options = any> {
   status: Status = Status.IDLE;
   error: string | null = null;
   data: Data | null = null;
-  fn: (options?: Options) => Promise<Data>;
+  private fn: (options?: Options) => Promise<Data>;
 
   constructor({ fn }: MutationOptions<Data>) {
     makeAutoObservable(this);
     this.fn = fn;
   }
 
-  setStatus(status: Status) {
+  private setStatus(status: Status) {
     this.status = status;
   }
 
-  setError(error: string | null) {
+  private setError(error: string | null) {
     this.error = error;
   }
 
@@ -51,7 +47,7 @@ export class Mutation<Data = any, Options = any> {
       console.error(error);
       this.setError(JSON.stringify(error));
       this.setStatus(Status.ERROR);
-      return;
+      return undefined;
     }
   }
 }

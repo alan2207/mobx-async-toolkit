@@ -1,20 +1,23 @@
 import { makeAutoObservable } from 'mobx';
-import { Mutation, MutationOptions } from './Mutation';
-import { Query, QueryOptions } from './Query';
+import { Mutation } from './Mutation';
+import { Query } from './Query';
 import { QueryCache } from './QueryCache';
 
-export * from './types';
+import { ToolkitOptions, MutationOptions, QueryOptions } from './types';
 
 export class Toolkit {
-  queries: Record<string, Query> = {};
+  private readonly queries: Record<string, Query> = {};
   queryCache: QueryCache;
 
-  constructor() {
+  constructor({ isCacheEnabled }: ToolkitOptions = {}) {
     makeAutoObservable(this);
-    this.queryCache = new QueryCache(this.queries);
+    this.queryCache = new QueryCache({
+      isCacheEnabled,
+      queries: this.queries,
+    });
   }
 
-  registerQuery(query: Query) {
+  private registerQuery(query: Query) {
     if (!this.queries[query.baseKey]) {
       this.queries[query.baseKey] = query;
     }
@@ -43,6 +46,6 @@ export class Toolkit {
   }
 }
 
-export const createToolkit = () => {
-  return new Toolkit();
+export const createToolkit = (options?: ToolkitOptions) => {
+  return new Toolkit(options);
 };

@@ -1,25 +1,23 @@
 import { makeAutoObservable } from 'mobx';
-
-type QueryCacheEntry = {
-  root?: string;
-  children: Record<string, string>;
-};
-
-type QueryKey<O = any> = {
-  baseKey: string;
-  options?: O;
-};
+import type { Query } from './Query';
+import { QueryCacheEntry, QueryCacheOptions, QueryKey } from './types';
 
 export class QueryCache {
-  entries: Record<string, QueryCacheEntry> = {};
-  queries: any;
+  private entries: Record<string, QueryCacheEntry> = {};
+  private queries: Record<string, Query>;
+  private isCacheEnabled: boolean;
 
-  constructor(queries: any) {
+  constructor({ queries, isCacheEnabled }: QueryCacheOptions) {
     makeAutoObservable(this);
     this.queries = queries;
+    this.isCacheEnabled = isCacheEnabled ?? true;
   }
 
   setQueryData<Data>(key: QueryKey, data: Data) {
+    if (!this.isCacheEnabled) {
+      return undefined;
+    }
+
     const { baseKey, options } = key;
 
     const base: QueryCacheEntry = this.entries[baseKey] || {
@@ -36,6 +34,10 @@ export class QueryCache {
   }
 
   getQueryData<Data>(key: QueryKey): Data | undefined {
+    if (!this.isCacheEnabled) {
+      return undefined;
+    }
+
     const { baseKey, options } = key;
 
     const base = this.entries[baseKey];
@@ -62,26 +64,30 @@ export class QueryCache {
     const { baseKey, options } = key;
     const base = this.entries[baseKey];
 
-    if (!base) return;
+    if (!base && this.isCacheEnabled) return;
 
     if (base && !options) {
-      this.entries[baseKey] = {
-        root: '',
-        children: {},
-      };
+      if (this.isCacheEnabled) {
+        delete this.entries[baseKey];
+      }
 
       await Promise.all(
         Object.keys(base.children)
           .map((k) => {
-            console.log({ baseKey, k });
             return this.queries[baseKey].fetch(JSON.parse(k));
           })
           .concat([this.queries[baseKey].fetch()])
       );
     } else {
-      delete this.entries[baseKey].children[JSON.stringify(options)];
+      if (this.isCacheEnabled) {
+        delete this.entries[baseKey].children[JSON.stringify(options)];
+      }
       await this.queries[baseKey].fetch(options);
     }
+  }
+
+  getEntries() {
+    return this.entries;
   }
 
   clear() {

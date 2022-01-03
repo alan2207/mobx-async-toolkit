@@ -1,19 +1,14 @@
 import { makeAutoObservable } from 'mobx';
 import type { QueryCache } from './QueryCache';
-import { Status } from './types';
+import { Status, QueryOptions } from './types';
 
-export type QueryOptions<Data, Options = any> = {
-  fn: (options: Options) => Promise<Data>;
-  baseKey: string;
-};
-
-export class Query<Data = any, Options = any> {
+export class Query<Data = any, Options = any, Error = any> {
   status: Status = Status.IDLE;
-  error: string | null = null;
+  error: Error | null = null;
   data: Data | null = null;
-  fn: (options?: Options) => Promise<Data>;
-  baseKey: string;
-  queryCache: QueryCache;
+  private fn: (options?: Options) => Promise<Data>;
+  readonly baseKey: string;
+  private queryCache: QueryCache;
 
   constructor({
     fn,
@@ -26,15 +21,15 @@ export class Query<Data = any, Options = any> {
     this.queryCache = queryCache;
   }
 
-  setStatus(status: Status) {
+  private setStatus(status: Status) {
     this.status = status;
   }
 
-  setError(error: string | null) {
+  private setError(error: Error | null) {
     this.error = error;
   }
 
-  setData(data: Data | null) {
+  private setData(data: Data | null) {
     this.data = data;
   }
 
@@ -59,7 +54,6 @@ export class Query<Data = any, Options = any> {
       baseKey: this.baseKey,
       options,
     };
-    // this.setData(null);
     await this.queryCache.invalidateQuery(key);
   }
 
@@ -69,10 +63,8 @@ export class Query<Data = any, Options = any> {
       : { baseKey: this.baseKey };
     try {
       this.setError(null);
-      // this.setData(null);
       this.setStatus(Status.LOADING);
       const cachedData = this.queryCache.getQueryData<Data>(key);
-      console.log({ cachedData });
       if (cachedData) {
         this.setData(cachedData);
         this.setStatus(Status.SUCCESS);
@@ -84,11 +76,11 @@ export class Query<Data = any, Options = any> {
         this.setStatus(Status.SUCCESS);
         return result;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      this.setError(JSON.stringify(error));
+      this.setError(error);
       this.setStatus(Status.ERROR);
-      return;
+      return undefined;
     }
   }
 }

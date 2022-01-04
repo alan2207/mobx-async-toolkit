@@ -9,14 +9,22 @@ export class Query<Data = any, Options = any, Error = any> {
   private fn: (options?: Options) => Promise<Data>;
   readonly baseKey: string;
   private queryCache: QueryCache;
+  private onSuccess: (data: Data, options: Options) => void;
+  private onError: (error: Error, options: Options) => void;
 
   constructor({
     fn,
+    onSuccess,
+    onError,
     baseKey,
     queryCache,
-  }: QueryOptions<Data> & { queryCache: QueryCache }) {
+  }: QueryOptions<Data> & {
+    queryCache: QueryCache;
+  }) {
     makeAutoObservable(this);
     this.fn = fn;
+    this.onSuccess = onSuccess || (() => {});
+    this.onError = onError || (() => {});
     this.baseKey = baseKey;
     this.queryCache = queryCache;
   }
@@ -74,12 +82,13 @@ export class Query<Data = any, Options = any, Error = any> {
         this.setData(result);
         this.queryCache.setQueryData<Data>(key, result);
         this.setStatus(Status.SUCCESS);
+        this.onSuccess(result, options!);
         return result;
       }
     } catch (error: any) {
-      console.error(error);
       this.setError(error);
       this.setStatus(Status.ERROR);
+      this.onError(error, options!);
       return undefined;
     }
   }

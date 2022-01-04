@@ -6,7 +6,7 @@ import { QueryCache } from './QueryCache';
 import { ToolkitOptions, MutationOptions, QueryOptions } from './types';
 
 export class Toolkit {
-  private readonly queries: Record<string, Query> = {};
+  private queries: Record<string, Query> = {};
   queryCache: QueryCache;
 
   constructor({ isCacheEnabled }: ToolkitOptions = {}) {
@@ -43,6 +43,11 @@ export class Toolkit {
     options: MutationOptions<Data, Options>
   ) {
     return new Mutation<Data, Options>(options);
+  }
+
+  reset() {
+    this.queries = {};
+    this.queryCache.clear();
   }
 }
 

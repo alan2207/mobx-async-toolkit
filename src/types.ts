@@ -9,11 +9,15 @@ export enum Status {
 
 export type QueryOptions<Data, Options = any> = {
   fn: (options: Options) => Promise<Data>;
+  onSuccess?: (data: Data, options: Options) => void;
+  onError?: (error: any, options: Options) => void;
   baseKey: string;
 };
 
 export type MutationOptions<Data, Options = any> = {
   fn: (options: Options) => Promise<Data>;
+  onSuccess?: (data: Data, options: Options) => void;
+  onError?: (error: any, options: Options) => void;
 };
 
 export type QueryCacheOptions = {

@@ -6,13 +6,14 @@ Toolkit for handling async operations in MobX stores
 
 ## Introduction
 
-Fetching and caching remote data is a tricky thing to do. There are a lot of things that need to be considered such as all the fetching states, cache invalidation, organizing all those states in a proper way etc. Fortunately in recent years a lot of great tools that solves these problems have been made such as react-query, apollo-client, swr, urlq, redux-toolkit-query. This is a simple solution that can be used with MobX in a similar way as the tools mentioned above. It is completely UI agnostic, all you need is `mobx` as a peerDependency.
+Fetching and caching remote data is a tricky thing to handle. There are a lot of things that need to be considered such as all the fetching states, cache invalidation, organizing all those states in a proper way etc. Fortunately in recent years a lot of great tools that solve these problems have been made such as react-query, apollo-client, swr, urlq, redux-toolkit-query. This is a simple solution that can be used in combination with MobX. Handle your server data without leaving the MobX world. It is completely UI agnostic, all that is required is the `mobx` package as a peer dependency.
 
 ## Features
 
-- Easy To Use
+- Simple To Use
 - Requests Caching
 - Requests Deduping
+- TypeScript Support
 
 ## Table of Contents
 
@@ -146,36 +147,55 @@ Function that creates and returns `Toolkit`.
 
 ```ts
 // src/lib/auth.ts
-export const toolkit = createToolkit();
+export const toolkit = createToolkit({
+  isCacheEnabled: true,
+});
 ```
+
+###### `createToolkit` options
+
+- `isCacheEnabled: boolean`
+  - if set to false, the results will not be cached
+  - every request will fetch the data from its original source
+  - defaults to true
 
 ### `Toolkit`
 
-The class that organizes queries, mutations and queryCache to work properly
+Organizes queries, mutations and queryCache to work properly
 
 ```ts
 // src/lib/auth.ts
 export const toolkit = createToolkit();
 ```
 
+###### `Toolkit` options
+
+- `isCacheEnabled: boolean`
+  - if set to false, the results will not be cached
+  - every request will fetch the data from its original source
+  - defaults to true
+
 A `Toolkit` instance will have the following properties and methods:
 
 - `createMutation: function`
 
-  - creates new mutations
+  - creates a new `Mutation` instance
 
 - `createQuery: function`
 
-  - creates new query
-  - if a query with the same key exists it will return the same instance
+  - creates a new `Query` instance
+  - if a query with the given key exists it will return the existing instance
 
 - `queryCache: QueryCache`
 
   - queryCache instance used by the queries
 
+- `reset: function`
+  - resets queries and queryCache
+
 ### `Query`
 
-The class that controls and tracks the lifecycle of a query
+Controls and tracks the lifecycle of a query
 
 ```ts
 const todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
@@ -184,7 +204,25 @@ const todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
 });
 ```
 
-A `Query` instance will have the following properties and methods:
+###### Query Options:
+
+- `fn: function`
+
+  - function that returns promise
+  - once resolved its return value will be set as query's `data` property
+
+- `baseKey: string`
+
+  - key used to track queries and their cache
+
+- `onSuccess: function`
+  - called if the query `fetch` function succeeds
+  - called with the resolved data as the first parameter and options passed to `fetch` as the second parameter
+- `onError: function`
+  - called if the query `fetch` function fails
+  - called with the error passed as the first parameter of the function
+
+###### A `Query` instance will have the following properties and methods:
 
 - `data: Data | null`
 
@@ -214,7 +252,7 @@ A `Query` instance will have the following properties and methods:
 
 ### `Mutation`
 
-The class that controls and tracks the lifecycle of a mutation
+Controls and tracks the lifecycle of a mutation
 
 ```ts
 const createTodoMutation = toolkit.createMutation<Todo, CreateTodoOptions>({
@@ -222,7 +260,21 @@ const createTodoMutation = toolkit.createMutation<Todo, CreateTodoOptions>({
 });
 ```
 
-A `Mutation` instance will have the following properties and methods:
+###### Mutation Options:
+
+- `fn: function`
+
+  - function that returns promise
+  - once resolved its return value will be set as query's `data` property
+
+- `onSuccess: function`
+  - called if the mutation `mutate` function succeeds
+  - called with the resolved data as the first parameter and options passed to `mutate` as the second parameter
+- `onError: function`
+  - called if the mutation `mutate` function fails
+  - called with the error passed as the first parameter of the function
+
+###### A `Mutation` instance will have the following properties and methods:
 
 - `data: Data | null`
 
@@ -247,7 +299,7 @@ A `Mutation` instance will have the following properties and methods:
 
 ### `QueryCache`
 
-The class that controls and tracks all the cached data
+Controls and tracks all the cached data
 
 A `QueryCache` instance will have the following properties and methods:
 

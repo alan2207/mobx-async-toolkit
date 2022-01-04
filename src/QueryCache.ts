@@ -31,6 +31,8 @@ export class QueryCache {
     }
 
     this.entries[baseKey] = { ...base };
+
+    return undefined;
   }
 
   getQueryData<Data>(key: QueryKey): Data | undefined {
@@ -76,7 +78,7 @@ export class QueryCache {
           .map((k) => {
             return this.queries[baseKey].fetch(JSON.parse(k));
           })
-          .concat([this.queries[baseKey].fetch()])
+          .concat(this.queries[baseKey] && [this.queries[baseKey].fetch()])
       );
     } else {
       if (this.isCacheEnabled) {

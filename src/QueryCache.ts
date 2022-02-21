@@ -1,46 +1,57 @@
 import { makeAutoObservable } from 'mobx';
+import { stringifyKey } from './helpers';
 import type { Query } from './Query';
 import { QueryCacheEntry, QueryCacheOptions, QueryKey } from './types';
 
 export class QueryCache {
   private entries: Record<string, QueryCacheEntry> = {};
   private queries: Record<string, Query>;
-  private isCacheEnabled: boolean;
+  private cacheTime: number;
+  private cacheClearenceSchedule: Record<string, NodeJS.Timeout> = {};
 
-  constructor({ queries, isCacheEnabled }: QueryCacheOptions) {
+  constructor({ queries, cacheTime }: QueryCacheOptions) {
     makeAutoObservable(this);
     this.queries = queries;
-    this.isCacheEnabled = isCacheEnabled ?? true;
+    this.cacheTime = cacheTime;
   }
 
-  setQueryData<Data>(key: QueryKey, data: Data) {
-    if (!this.isCacheEnabled) {
-      return undefined;
-    }
+  setQueryData<Data>(
+    key: QueryKey,
+    data: Data,
+    queryOptions: { cacheTime: number | undefined }
+  ) {
+    if (this.cacheTime <= 0) return;
 
     const { baseKey, options } = key;
+    const stringifiedKey = stringifyKey(key);
 
     const base: QueryCacheEntry = this.entries[baseKey] || {
       children: {},
     };
 
     if (options) {
-      base.children[JSON.stringify(options)] = JSON.stringify(data);
+      base.children[stringifiedKey] = JSON.stringify(data);
     } else {
       base.root = JSON.stringify(data);
     }
 
     this.entries[baseKey] = { ...base };
 
+    if (this.cacheClearenceSchedule[stringifiedKey]) {
+      clearTimeout(this.cacheClearenceSchedule[stringifiedKey]);
+      delete this.cacheClearenceSchedule[stringifiedKey];
+    }
+
+    this.cacheClearenceSchedule[stringifiedKey] = setTimeout(async () => {
+      delete this.entries[baseKey];
+    }, queryOptions.cacheTime ?? this.cacheTime);
+
     return undefined;
   }
 
   getQueryData<Data>(key: QueryKey): Data | undefined {
-    if (!this.isCacheEnabled) {
-      return undefined;
-    }
-
     const { baseKey, options } = key;
+    const stringifiedKey = stringifyKey(key);
 
     const base = this.entries[baseKey];
 
@@ -48,7 +59,7 @@ export class QueryCache {
       return undefined;
     }
 
-    if (options && !base.children[JSON.stringify(options)]) {
+    if (options && !base.children[stringifiedKey]) {
       return undefined;
     }
 
@@ -58,34 +69,48 @@ export class QueryCache {
       }
       return JSON.parse(base.root);
     } else {
-      return JSON.parse(base.children[JSON.stringify(options)]);
+      return JSON.parse(base.children[stringifiedKey]);
+    }
+  }
+
+  async refetchQuery(key: QueryKey) {
+    const { baseKey, options } = key;
+    const stringifiedKey = stringifyKey(key);
+
+    if (!options) {
+      await Promise.all(
+        Object.entries(this.queries).reduce<Promise<any>[]>((acc, [_, v]) => {
+          if (baseKey === v.baseKey) {
+            acc.push(v.fetch());
+          }
+
+          return acc;
+        }, [])
+      );
+    } else {
+      if (this.queries[stringifiedKey]) {
+        await this.queries[stringifiedKey].fetch();
+      }
     }
   }
 
   async invalidateQuery(key: QueryKey) {
     const { baseKey, options } = key;
+    const stringifiedKey = stringifyKey(key);
     const base = this.entries[baseKey];
 
-    if (!base && this.isCacheEnabled) return;
+    if (!base) {
+      await this.refetchQuery(key);
+      return;
+    }
 
     if (base && !options) {
-      if (this.isCacheEnabled) {
-        delete this.entries[baseKey];
-      }
-
-      await Promise.all(
-        Object.keys(base.children)
-          .map((k) => {
-            return this.queries[baseKey].fetch(JSON.parse(k));
-          })
-          .concat(this.queries[baseKey] && [this.queries[baseKey].fetch()])
-      );
+      delete this.entries[baseKey];
     } else {
-      if (this.isCacheEnabled) {
-        delete this.entries[baseKey].children[JSON.stringify(options)];
-      }
-      await this.queries[baseKey].fetch(options);
+      delete this.entries[baseKey].children[stringifiedKey];
     }
+
+    await this.refetchQuery(key);
   }
 
   getEntries() {

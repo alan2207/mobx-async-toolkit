@@ -1,4 +1,4 @@
-import { TodosModel } from './testApi';
+import { TodosModel, TodosModelOptions, TodoStatus } from './testApi';
 
 import { createToolkit, Status, Toolkit } from '../src/index';
 
@@ -16,231 +16,241 @@ const loggerService = {
 let model: TodosModel;
 let toolkit: Toolkit;
 
+const todo1 = {
+  title: 'Todo 1',
+  description: 'This is important',
+  id: '1',
+  status: TodoStatus.PENDING,
+};
+
+const todo2 = {
+  title: 'Todo 1',
+  description: 'This is important',
+  id: '1',
+  status: TodoStatus.DONE,
+};
+
+const todos1 = [todo1];
+const todos2 = [todo2];
+
+const todoModelOptions: TodosModelOptions = {
+  todo: {
+    id: '1',
+  },
+  todos: {
+    status: TodoStatus.PENDING,
+  },
+};
+
+jest.useFakeTimers();
+jest.spyOn(global, 'setInterval');
+
 beforeEach(() => {
   jest.resetAllMocks();
   toolkit = createToolkit();
-  toolkit.reset();
-  model = new TodosModel(toolkit, apiService, loggerService);
+  model = new TodosModel(toolkit, apiService, loggerService, todoModelOptions);
 });
 
 describe('Test', () => {
-  test('query', async () => {
-    const todos = [
-      {
-        title: 'Todo 1',
-        description: 'This is important',
-        id: '1',
-        status: 'Done',
-      },
-    ];
-
-    apiService.getTodos.mockImplementation(() => todos);
-    expect(model.todosQuery.status).toBe(Status.IDLE);
-    const promise = model.todosQuery.fetch();
-    expect(model.todosQuery.status).toBe(Status.LOADING);
-    await promise;
-    expect(model.todosQuery.status).toBe(Status.SUCCESS);
-    expect(apiService.getTodos).toHaveBeenCalledTimes(1);
-    expect(model.todosQuery.data).toEqual(todos);
-  });
-
-  test('mutation', async () => {
-    const todo = {
-      title: 'Todo 1',
-      description: 'This is test todo',
-      id: '1',
-    };
-    expect(model.createTodoMutation.status).toBe(Status.IDLE);
-    const promise = model.createTodoMutation.mutate({
-      data: todo,
+  describe('query', () => {
+    test('simple', async () => {
+      apiService.getTodos.mockImplementation(() => todos1);
+      expect(model.todosQuery.status).toBe(Status.IDLE);
+      const promise = model.todosQuery.startQuery();
+      expect(model.todosQuery.status).toBe(Status.LOADING);
+      await promise;
+      expect(model.todosQuery.status).toBe(Status.SUCCESS);
+      expect(apiService.getTodos).toHaveBeenCalledTimes(1);
+      expect(model.todosQuery.data).toEqual(todos1);
     });
-    expect(model.createTodoMutation.status).toBe(Status.LOADING);
-    await promise;
-    expect(model.createTodoMutation.status).toBe(Status.SUCCESS);
-    expect(apiService.createTodo).toHaveBeenCalledWith({ data: todo });
-  });
 
-  test('query with options', async () => {
-    const todo = {
-      title: 'Todo 1',
-      description: 'This is important',
-      id: '1',
-      status: 'Done',
-    };
-    apiService.getTodo.mockImplementation(() => todo);
-    expect(model.todoQuery.status).toBe(Status.IDLE);
-    const promise = model.todoQuery.fetch({ id: '1' });
-    expect(model.todoQuery.status).toBe(Status.LOADING);
-    await promise;
-    expect(model.todoQuery.status).toBe(Status.SUCCESS);
-    expect(model.todoQuery.data).toEqual(todo);
-    expect(apiService.getTodo).toHaveBeenCalledTimes(1);
-  });
-
-  test('query that fails', async () => {
-    apiService.getTodos.mockImplementation(() => {
-      throw new Error();
+    test('with options', async () => {
+      apiService.getTodo.mockImplementation(() => todo1);
+      expect(model.todoQuery.status).toBe(Status.IDLE);
+      const promise = model.todoQuery.startQuery();
+      expect(model.todoQuery.status).toBe(Status.LOADING);
+      await promise;
+      expect(model.todoQuery.status).toBe(Status.SUCCESS);
+      expect(model.todoQuery.data).toEqual(todo1);
+      expect(apiService.getTodo).toHaveBeenCalledTimes(1);
+      expect(apiService.getTodo).toHaveBeenCalledWith({ id: '1' });
     });
-    expect(model.todosQuery.status).toBe(Status.IDLE);
-    const promise = model.todosQuery.fetch();
-    expect(model.todosQuery.status).toBe(Status.ERROR);
-    await promise;
-    expect(model.todosQuery.status).toBe(Status.ERROR);
-    expect(apiService.getTodos).toHaveBeenCalledTimes(1);
-    expect(model.todosQuery.data).toBeNull();
-    expect(model.todosQuery.error).toBeTruthy();
+
+    test('with optionsOverride', async () => {
+      apiService.getTodo.mockImplementation(() => todo1);
+      expect(model.todoQuery.status).toBe(Status.IDLE);
+      const promise = model.todoQuery.startQuery({
+        optionsOverride: { id: '2' },
+      });
+      expect(model.todoQuery.status).toBe(Status.LOADING);
+      await promise;
+      expect(model.todoQuery.status).toBe(Status.SUCCESS);
+      expect(model.todoQuery.data).toEqual(todo1);
+      expect(apiService.getTodo).toHaveBeenCalledTimes(1);
+      expect(apiService.getTodo).toHaveBeenCalledWith({ id: '2' });
+    });
+
+    test('that fails', async () => {
+      apiService.getTodos.mockImplementation(() => {
+        throw new Error();
+      });
+      expect(model.todosQuery.status).toBe(Status.IDLE);
+      const promise = model.todosQuery.startQuery();
+      expect(model.todosQuery.status).toBe(Status.ERROR);
+      await promise;
+      expect(model.todosQuery.status).toBe(Status.ERROR);
+      expect(apiService.getTodos).toHaveBeenCalledTimes(1);
+      expect(model.todosQuery.data).toBeNull();
+      expect(model.todosQuery.error).toBeTruthy();
+    });
+
+    test('with cache invalidation', async () => {
+      apiService.getTodos.mockImplementation(() => todos1);
+
+      await model.todosQuery.startQuery();
+
+      expect(toolkit.queryCache.getEntries().todos).toBeTruthy();
+
+      const promise = toolkit.queryCache.invalidateQuery({ baseKey: 'todos' });
+
+      expect(toolkit.queryCache.getEntries().todos).toBeUndefined();
+
+      await promise;
+
+      expect(apiService.getTodos).toHaveBeenCalledTimes(2);
+
+      expect(toolkit.queryCache.getEntries().todos).not.toBeUndefined();
+    });
+
+    test('read from cache', async () => {
+      apiService.getTodos.mockImplementation(() => todos1);
+
+      await model.todosQuery.startQuery();
+
+      expect(model.todosQuery.data).toEqual(todos1);
+
+      apiService.getTodos.mockImplementation(() => todos2);
+
+      await model.todosQuery.startQuery();
+
+      expect(model.todosQuery.data).toEqual(todos1);
+    });
+
+    test('with requests deduping', async () => {
+      await Promise.all(
+        [1, 2, 3, 4, 5].map(() => model.todosQuery.startQuery())
+      );
+
+      expect(apiService.getTodos).toHaveBeenCalledTimes(1);
+    });
+
+    test('onSuccess called properly', async () => {
+      apiService.getTodos.mockImplementation(() => todos1);
+
+      await model.todosQuery.startQuery();
+      expect(loggerService.success).toHaveBeenCalledWith(todos1, {
+        status: 'Pending',
+      });
+    });
+
+    test('onError called properly', async () => {
+      const error = new Error();
+
+      apiService.getTodos.mockImplementation(() => {
+        throw error;
+      });
+
+      await model.todosQuery.startQuery();
+      expect(loggerService.error).toHaveBeenCalledWith(error, {
+        status: 'Pending',
+      });
+    });
+
+    test('with cached disabled', async () => {
+      const toolkit = createToolkit({
+        cacheTime: 0,
+      });
+      const model = new TodosModel(
+        toolkit,
+        apiService,
+        loggerService,
+        todoModelOptions
+      );
+
+      apiService.getTodos.mockImplementation(() => todos1);
+      await model.todosQuery.startQuery();
+      expect(toolkit.queryCache.getEntries()).toEqual({});
+    });
+
+    test('with refetchInterval', async () => {
+      apiService.getTodo.mockImplementation(() => todo1);
+      await model.todoQuery.startQuery({ refetchInterval: 1000 });
+      jest.advanceTimersByTime(1000);
+      expect(setInterval).toHaveBeenCalled();
+    });
   });
 
-  test('mutation that fails', async () => {
-    const todo = {
-      title: 'Todo 1',
-      description: 'This is test todo',
-      id: '1',
-    };
+  describe('mutation', () => {
+    test('simple', async () => {
+      expect(model.createTodoMutation.status).toBe(Status.IDLE);
+      const promise = model.createTodoMutation.mutate({
+        data: todo1,
+      });
+      expect(model.createTodoMutation.status).toBe(Status.LOADING);
+      await promise;
+      expect(model.createTodoMutation.status).toBe(Status.SUCCESS);
+      expect(apiService.createTodo).toHaveBeenCalledWith({ data: todo1 });
+    });
 
-    apiService.createTodo.mockImplementation(() => {
-      throw new Error();
+    test('that fails', async () => {
+      apiService.createTodo.mockImplementation(() => {
+        throw new Error();
+      });
+      expect(model.createTodoMutation.status).toBe(Status.IDLE);
+      const promise = model.createTodoMutation.mutate({
+        data: todo1,
+      });
+      expect(model.createTodoMutation.status).toBe(Status.ERROR);
+      await promise;
+      expect(apiService.createTodo).toHaveBeenCalledWith({ data: todo1 });
+      expect(model.createTodoMutation.data).toBeNull();
+      expect(model.createTodoMutation.error).toBeTruthy();
     });
-    expect(model.createTodoMutation.status).toBe(Status.IDLE);
-    const promise = model.createTodoMutation.mutate({
-      data: todo,
+
+    test('onSuccess called properly', async () => {
+      apiService.createTodo.mockImplementation(() => todo1);
+
+      await model.createTodoMutation.mutate({
+        data: todo1,
+      });
+      expect(loggerService.success).toHaveBeenCalledWith(todo1, {
+        data: todo1,
+      });
     });
-    expect(model.createTodoMutation.status).toBe(Status.ERROR);
-    await promise;
-    expect(apiService.createTodo).toHaveBeenCalledWith({ data: todo });
-    expect(model.createTodoMutation.data).toBeNull();
-    expect(model.createTodoMutation.error).toBeTruthy();
+
+    test('onError called properly', async () => {
+      const error = new Error();
+
+      apiService.createTodo.mockImplementation(() => {
+        throw error;
+      });
+
+      await model.createTodoMutation.mutate({
+        data: todo1,
+      });
+      expect(loggerService.error).toHaveBeenCalledWith(error, { data: todo1 });
+    });
   });
 
-  test('reset toolkit', async () => {
-    const todos = [
-      {
-        title: 'Todo 1',
-        description: 'This is important',
-        id: '1',
-        status: 'Done',
-      },
-    ];
-    apiService.getTodos.mockImplementation(() => todos);
+  test('toolkit reset', async () => {
+    apiService.getTodos.mockImplementation(() => todos1);
 
-    await model.todosQuery.fetch();
+    await model.todosQuery.startQuery();
 
     expect(toolkit.queryCache.getEntries().todos).toBeTruthy();
 
     toolkit.reset();
 
     expect(toolkit.queryCache.getEntries().todos).toBeUndefined();
-  });
-
-  test('invalidate cache', async () => {
-    const todos = [
-      {
-        title: 'Todo 1',
-        description: 'This is important',
-        id: '1',
-        status: 'Done',
-      },
-    ];
-    apiService.getTodos.mockImplementation(() => todos);
-
-    await model.todosQuery.fetch();
-
-    expect(toolkit.queryCache.getEntries().todos).toBeTruthy();
-
-    await toolkit.queryCache.invalidateQuery({ baseKey: 'todos' });
-
-    expect(toolkit.queryCache.getEntries().todos).toBeUndefined();
-  });
-
-  test('query reading from cache', async () => {
-    const todos = [
-      {
-        title: 'Todo 1',
-        description: 'This is important',
-        id: '1',
-        status: 'Done',
-      },
-    ];
-
-    const todosUpdated = [
-      {
-        title: 'Todo 1 - Updated',
-        description: 'This is important',
-        id: '1',
-        status: 'Done',
-      },
-    ];
-
-    apiService.getTodos.mockImplementation(() => todos);
-
-    await model.todosQuery.fetch();
-
-    expect(model.todosQuery.data).toEqual(todos);
-
-    apiService.getTodos.mockImplementation(() => todosUpdated);
-
-    await model.todosQuery.fetch();
-
-    expect(model.todosQuery.data).toEqual(todos);
-  });
-  test('query onSuccess called properly', async () => {
-    const todos = [
-      {
-        title: 'Todo 1',
-        description: 'This is important',
-        id: '1',
-        status: 'Done',
-      },
-    ];
-
-    apiService.getTodos.mockImplementation(() => todos);
-
-    await model.todosQuery.fetch();
-    expect(loggerService.success).toHaveBeenCalledWith(todos, undefined);
-  });
-
-  test('query onError called properly', async () => {
-    const error = new Error();
-
-    apiService.getTodos.mockImplementation(() => {
-      throw error;
-    });
-
-    await model.todosQuery.fetch();
-    expect(loggerService.error).toHaveBeenCalledWith(error, undefined);
-  });
-
-  test('mutation onSuccess called properly', async () => {
-    const todo = {
-      title: 'Todo 1',
-      description: 'This is test todo',
-      id: '1',
-    };
-
-    apiService.createTodo.mockImplementation(() => todo);
-
-    await model.createTodoMutation.mutate({
-      data: todo,
-    });
-    expect(loggerService.success).toHaveBeenCalledWith(todo, { data: todo });
-  });
-
-  test('mutation onError called properly', async () => {
-    const todo = {
-      title: 'Todo 1',
-      description: 'This is test todo',
-      id: '1',
-    };
-
-    const error = new Error();
-
-    apiService.createTodo.mockImplementation(() => {
-      throw error;
-    });
-
-    await model.createTodoMutation.mutate({
-      data: todo,
-    });
-    expect(loggerService.error).toHaveBeenCalledWith(error, { data: todo });
   });
 });

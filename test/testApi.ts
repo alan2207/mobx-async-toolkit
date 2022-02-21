@@ -1,16 +1,17 @@
 import { makeAutoObservable } from 'mobx';
 import { Mutation, Query, Toolkit } from '../src/index';
 
-enum TodoStatus {
+export enum TodoStatus {
   PENDING = 'Pending',
   DONE = 'Done',
+  ALL = 'All',
 }
 
 interface Todo {
   id: string;
   title: string;
   description: string;
-  status: TodoStatus;
+  status: TodoStatus | undefined;
 }
 
 type GetTodosOptions = {
@@ -34,6 +35,11 @@ type LoggerService = {
   error: (...args: any) => void;
 };
 
+export type TodosModelOptions = {
+  todo: GetTodoOptions;
+  todos: GetTodosOptions;
+};
+
 export class TodosModel {
   toolkit: Toolkit;
   apiService: ApiService;
@@ -46,7 +52,8 @@ export class TodosModel {
   constructor(
     toolkit: Toolkit,
     apiService: ApiService,
-    loggerService: LoggerService
+    loggerService: LoggerService,
+    options: TodosModelOptions
   ) {
     makeAutoObservable(this);
     this.toolkit = toolkit;
@@ -55,6 +62,7 @@ export class TodosModel {
 
     this.todoQuery = toolkit.createQuery<Todo, GetTodoOptions>({
       fn: apiService.getTodo,
+      fnOptions: options.todo,
       baseKey: 'todo',
       onSuccess: loggerService.success,
       onError: loggerService.error,
@@ -62,6 +70,7 @@ export class TodosModel {
 
     this.todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
       fn: apiService.getTodos,
+      fnOptions: options.todos,
       baseKey: 'todos',
       onSuccess: loggerService.success,
       onError: loggerService.error,

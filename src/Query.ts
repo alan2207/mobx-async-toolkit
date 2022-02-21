@@ -6,27 +6,38 @@ export class Query<Data = any, Options = any, Error = any> {
   status: Status = Status.IDLE;
   error: Error | null = null;
   data: Data | null = null;
-  private fn: (options?: Options) => Promise<Data>;
+  fnOptions: Options;
+  private fn: (options: Options) => Promise<Data>;
   readonly baseKey: string;
   private queryCache: QueryCache;
+  private cacheTime: number | undefined;
   private onSuccess: (data: Data, options: Options) => void;
   private onError: (error: Error, options: Options) => void;
+  private keepPreviousData: boolean;
+
+  private refetchIntervalRef: NodeJS.Timer | null = null;
 
   constructor({
     fn,
+    fnOptions,
     onSuccess,
     onError,
     baseKey,
     queryCache,
-  }: QueryOptions<Data> & {
+    cacheTime,
+    keepPreviousData,
+  }: QueryOptions<Data, Options> & {
     queryCache: QueryCache;
   }) {
     makeAutoObservable(this);
     this.fn = fn;
+    this.fnOptions = fnOptions;
     this.onSuccess = onSuccess || (() => {});
     this.onError = onError || (() => {});
     this.baseKey = baseKey;
     this.queryCache = queryCache;
+    this.cacheTime = cacheTime;
+    this.keepPreviousData = keepPreviousData ?? false;
   }
 
   private setStatus(status: Status) {
@@ -65,14 +76,50 @@ export class Query<Data = any, Options = any, Error = any> {
     await this.queryCache.invalidateQuery(key);
   }
 
-  async fetch(options?: Options) {
-    const key = options
-      ? { baseKey: this.baseKey, options }
-      : { baseKey: this.baseKey };
+  async startQuery(config?: {
+    refetchInterval?: number;
+    optionsOverride?: Partial<Options>;
+  }) {
+    const optionsOverride = config?.optionsOverride;
+    const refetchInterval = config?.refetchInterval;
+
+    await this.fetch(optionsOverride);
+    if (refetchInterval && refetchInterval > 0) {
+      if (this.refetchIntervalRef) {
+        clearInterval(this.refetchIntervalRef);
+      }
+
+      this.refetchIntervalRef = setInterval(() => {
+        this.fetch(optionsOverride);
+      }, refetchInterval);
+    }
+  }
+
+  async stopQuery() {
+    if (this.refetchIntervalRef) {
+      clearInterval(this.refetchIntervalRef);
+    }
+
+    this.refetchIntervalRef = null;
+  }
+
+  async fetch(optionsOverride?: Partial<Options>) {
+    if (this.status === Status.LOADING) return undefined;
+
+    const options = { ...this.fnOptions, ...optionsOverride };
+
+    const key = {
+      baseKey: this.baseKey,
+      options: this.fnOptions,
+    };
+
     try {
-      this.setError(null);
+      if (!this.keepPreviousData) {
+        this.setError(null);
+      }
       this.setStatus(Status.LOADING);
       const cachedData = this.queryCache.getQueryData<Data>(key);
+
       if (cachedData) {
         this.setData(cachedData);
         this.setStatus(Status.SUCCESS);
@@ -80,7 +127,9 @@ export class Query<Data = any, Options = any, Error = any> {
       } else {
         const result = await this.fn(options);
         this.setData(result);
-        this.queryCache.setQueryData<Data>(key, result);
+        this.queryCache.setQueryData<Data>(key, result, {
+          cacheTime: this.cacheTime,
+        });
         this.setStatus(Status.SUCCESS);
         this.onSuccess(result, options!);
         return result;
@@ -91,5 +140,11 @@ export class Query<Data = any, Options = any, Error = any> {
       this.onError(error, options!);
       return undefined;
     }
+  }
+
+  reset() {
+    this.data = null;
+    this.error = null;
+    this.status = Status.IDLE;
   }
 }

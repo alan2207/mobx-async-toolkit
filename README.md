@@ -6,13 +6,14 @@ Toolkit for handling async operations in MobX stores
 
 ## Introduction
 
-Fetching and caching remote data is a tricky thing to handle. There are a lot of things that need to be considered such as all the fetching states, cache invalidation, organizing all those states in a proper way etc. Fortunately in recent years a lot of great tools that solve these problems have been made such as react-query, apollo-client, swr, urlq, redux-toolkit-query. This is a simple solution that can be used in combination with MobX. Handle your server data without leaving the MobX world. It is completely UI agnostic, all that is required is the `mobx` package as a peer dependency.
+Handle your server data without leaving the MobX world. It is completely UI agnostic, all that is required is the `mobx` package as a peer dependency.
 
 ## Features
 
 - Simple To Use
 - Requests Caching
 - Requests Deduping
+- Requests Polling
 - TypeScript Support
 
 ## Table of Contents
@@ -50,7 +51,9 @@ First of all, a `Toolkit` instance must be created and exported.
 import { createToolkit } from 'mobx-async-toolkit';
 
 export const toolkit = createToolkit({
-  isCacheEnabled: true,
+  cacheTime: 1000,
+  onSuccess: console.log,
+  onError: console.error,
 });
 ```
 
@@ -58,71 +61,64 @@ Then it can be used to create queries and mutations as following:
 
 ```ts
 import { makeAutoObservable } from 'mobx';
+import type { Mutation, Query } from 'mobx-async-toolkit';
 import {
   createTodo,
   CreateTodoOptions,
-  deleteTodo,
-  DeleteTodoOptions,
-  getTodo,
-  GetTodoOptions,
   getTodos,
   GetTodosOptions,
   Todo,
-  updateTodo,
-  UpdateTodoOptions,
 } from '../lib/api';
 import { toolkit } from '../lib/toolkit';
 
-export class TodoStore {
-  constructor() {
+type TodosModelOptions = {
+  todosOptions: GetTodosOptions;
+};
+export class TodosModel {
+  todosQuery: Query<Todo[], GetTodosOptions>;
+  createTodoMutation: Mutation<Todo, CreateTodoOptions>;
+
+  constructor(options: TodosModelOptions) {
     makeAutoObservable(this);
+
+    this.todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
+      baseKey: 'todos',
+      fnOptions: this.options.todosOptions,
+      fn: (options) => getTodos(options),
+    });
+
+    this.createTodoMutation = toolkit.createMutation<Todo, CreateTodoOptions>({
+      fn: createTodo,
+    });
   }
-
-  todoQuery = toolkit.createQuery<Todo, GetTodoOptions>({
-    fn: getTodo,
-    baseKey: 'todo',
-  });
-
-  todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
-    fn: getTodos,
-    baseKey: 'todos',
-  });
-
-  createTodoMutation = toolkit.createMutation<Todo, CreateTodoOptions>({
-    fn: createTodo,
-  });
-
-  updateTodoMutation = toolkit.createMutation<Todo[], UpdateTodoOptions>({
-    fn: updateTodo,
-  });
-
-  deleteTodoMutation = toolkit.createMutation<
-    Todo | undefined,
-    DeleteTodoOptions
-  >({
-    fn: deleteTodo,
-  });
 }
 ```
 
-Then a query can be consumed like this:
+A query can be consumed like this:
 
 ```ts
-const todoStore = new TodoStore();
+const todoStore = new TodoStore({
+  todosOptions: {
+    status: 'done',
+  },
+});
 
 todoStore.todosQuery.data;
 todoStore.todosQuery.status;
 todoStore.todosQuery.error;
-todoStore.todosQuery.fetch(options);
-todoStore.todosQuery.refetch();
+todoStore.todosQuery.startQuery(options);
 ```
 
-And here is a mutation:
+A mutation is consumed like this:
 
 ```ts
 import { toolkit } from '../../lib/toolkit';
 
-const todoStore = new TodoStore();
+const todoStore = new TodoStore({
+  todosOptions: {
+    status: 'done',
+  },
+});
 
 const handleSubmit = (data: CreateTodoOptions) => {
   await todoStore.createTodoMutation.mutate(data);
@@ -165,15 +161,30 @@ Organizes queries, mutations and queryCache to work properly
 
 ```ts
 // src/lib/auth.ts
-export const toolkit = createToolkit();
+export const toolkit = createToolkit({
+  cacheTime: 0,
+  onSuccess: console.log,
+  onError: console.error,
+});
 ```
 
 ###### `Toolkit` options
 
-- `isCacheEnabled: boolean`
-  - if set to false, the results will not be cached
-  - every request will fetch the data from its original source
-  - defaults to true
+- `cacheTime: number`
+  - cache entry duration in miliseconds
+  - if set to `0`, caching will be skipped
+  - defaults to `60000` - 1 minute
+- `onSuccess: function`
+  - global callback for successful operations
+  - called if the request of a query or mutation function succeeds
+  - called with the resolved data as the first parameter and options passed as the second parameter
+- `onError: function`
+  - global callback for failed operations
+  - called if a query or mutation function fails
+  - called with the error passed as the first parameter of the function
+- `keepPreviousData: boolean`
+  - if set to `true` it will not clear the data before fetching it
+  - defaults to `false`
 
 A `Toolkit` instance will have the following properties and methods:
 
@@ -200,7 +211,11 @@ Controls and tracks the lifecycle of a query
 ```ts
 const todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
   fn: getTodos,
+  fnOptions: { status: 'done' }
   baseKey: 'todos',
+  cacheTime: 1000,
+  onSuccess: console.log,
+  onError: console.error,
 });
 ```
 
@@ -208,12 +223,23 @@ const todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
 
 - `fn: function`
 
-  - function that returns promise
-  - once resolved its return value will be set as query's `data` property
+  - function that fetches data
+  - once resolved its return value will be set as the `data` property of the query
 
 - `baseKey: string`
 
-  - key used to track queries and their cache
+  - base key used to track queries and their cache
+
+- `fnOptions`
+
+  - options passed to `fn` when calling the query
+  - will be combined with `baseKey` to form the key for queryCache entry
+
+- `cacheTime: number`
+
+  - cache entry duration in miliseconds
+  - overrides the default value passed during toolkit creation
+  - allows setting the duration per query
 
 - `onSuccess: function`
   - called if the query `fetch` function succeeds
@@ -221,6 +247,9 @@ const todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
 - `onError: function`
   - called if the query `fetch` function fails
   - called with the error passed as the first parameter of the function
+- `keepPreviousData: boolean`
+  - if set to `true` it will not clear the data before fetching it
+  - defaults to `false`
 
 ###### A `Query` instance will have the following properties and methods:
 
@@ -245,6 +274,15 @@ const todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
   - triggers a query to start fetching the data
   - it will also invalidate any cached data so it will be fresh
 
+- `startQuery`
+
+  - calls `fetch` under the hood
+  - if `refetchInterval` is passed it will poll the data at given interval
+
+- `stopQuery`
+
+  - stops polling
+
 - `isIdle: () => boolean`
 - `isLoading: () => boolean`
 - `isSuccess: () => boolean`
@@ -257,6 +295,8 @@ Controls and tracks the lifecycle of a mutation
 ```ts
 const createTodoMutation = toolkit.createMutation<Todo, CreateTodoOptions>({
   fn: createTodo,
+  onSuccess: console.log,
+  onError: console.error,
 });
 ```
 

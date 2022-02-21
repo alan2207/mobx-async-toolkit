@@ -8,10 +8,13 @@ export enum Status {
 }
 
 export type QueryOptions<Data, Options = any> = {
+  baseKey: string;
   fn: (options: Options) => Promise<Data>;
+  fnOptions: Options;
   onSuccess?: (data: Data, options: Options) => void;
   onError?: (error: any, options: Options) => void;
-  baseKey: string;
+  cacheTime?: number;
+  keepPreviousData?: boolean;
 };
 
 export type MutationOptions<Data, Options = any> = {
@@ -22,7 +25,7 @@ export type MutationOptions<Data, Options = any> = {
 
 export type QueryCacheOptions = {
   queries: Record<string, Query>;
-  isCacheEnabled?: boolean;
+  cacheTime: number;
 };
 
 export type QueryCacheEntry = {
@@ -36,5 +39,8 @@ export type QueryKey<O = any> = {
 };
 
 export type ToolkitOptions = {
-  isCacheEnabled?: boolean;
+  cacheTime?: number;
+  onSuccess?: (data: any, options: any) => void;
+  onError?: (error: any, options: any) => void;
+  keepPreviousData?: boolean;
 };

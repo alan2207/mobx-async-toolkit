@@ -15,6 +15,7 @@ export type QueryOptions<Data, Options = any> = {
   onError?: (error: any, options: Options) => void;
   cacheTime?: number;
   keepPreviousData?: boolean;
+  initialData?: Data;
 };
 
 export type MutationOptions<Data, Options = any> = {

@@ -5,7 +5,7 @@ import { Status, QueryOptions } from './types';
 export class Query<Data = any, Options = any, Error = any> {
   status: Status = Status.IDLE;
   error: Error | null = null;
-  data: Data | null = null;
+  data: Data | null;
   fnOptions: Options;
   private fn: (options: Options) => Promise<Data>;
   readonly baseKey: string;
@@ -26,6 +26,7 @@ export class Query<Data = any, Options = any, Error = any> {
     queryCache,
     cacheTime,
     keepPreviousData,
+    initialData,
   }: QueryOptions<Data, Options> & {
     queryCache: QueryCache;
   }) {
@@ -38,6 +39,7 @@ export class Query<Data = any, Options = any, Error = any> {
     this.queryCache = queryCache;
     this.cacheTime = cacheTime;
     this.keepPreviousData = keepPreviousData ?? false;
+    this.data = initialData || null;
   }
 
   private setStatus(status: Status) {

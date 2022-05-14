@@ -24,19 +24,19 @@ export class Mutation<Data = any, Options = any, Error = any> {
     this.error = error;
   }
 
-  isIdle() {
+  get isIdle() {
     return this.status === Status.IDLE;
   }
 
-  isSuccess() {
+  get isSuccess() {
     return this.status === Status.SUCCESS;
   }
 
-  isError() {
+  get isError() {
     return this.status === Status.ERROR;
   }
 
-  isLoading() {
+  get isLoading() {
     return this.status === Status.LOADING;
   }
 

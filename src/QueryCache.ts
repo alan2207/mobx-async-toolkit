@@ -5,7 +5,7 @@ import { QueryCacheEntry, QueryCacheOptions, QueryKey } from './types';
 
 export class QueryCache {
   private entries: Record<string, QueryCacheEntry> = {};
-  private queries: Record<string, Query>;
+  private queries: Map<QueryKey, Query>;
   private cacheTime: number;
   private cacheClearenceSchedule: Record<string, NodeJS.Timeout> = {};
 
@@ -75,11 +75,10 @@ export class QueryCache {
 
   async refetchQuery(key: QueryKey) {
     const { baseKey, options } = key;
-    const stringifiedKey = stringifyKey(key);
 
     if (!options) {
       await Promise.all(
-        Object.entries(this.queries).reduce<Promise<any>[]>((acc, [_, v]) => {
+        Array.from(this.queries.values()).reduce<Promise<any>[]>((acc, v) => {
           if (baseKey === v.baseKey) {
             acc.push(v.fetch());
           }
@@ -88,8 +87,8 @@ export class QueryCache {
         }, [])
       );
     } else {
-      if (this.queries[stringifiedKey]) {
-        await this.queries[stringifiedKey].fetch();
+      if (this.queries.get(key)) {
+        await this.queries.get(key)?.fetch();
       }
     }
   }

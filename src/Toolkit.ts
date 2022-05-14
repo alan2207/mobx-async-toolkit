@@ -1,6 +1,5 @@
 import { makeAutoObservable } from 'mobx';
 import { QueryKey } from '.';
-import { stringifyKey } from './helpers';
 import { Mutation } from './Mutation';
 import { Query } from './Query';
 import { QueryCache } from './QueryCache';
@@ -8,7 +7,7 @@ import { QueryCache } from './QueryCache';
 import { ToolkitOptions, MutationOptions, QueryOptions } from './types';
 
 export class Toolkit {
-  private queries: Record<string, Query> = {};
+  private queries = new Map<QueryKey, Query>();
   queryCache: QueryCache;
   private onSuccess: ((data: any, options: any) => void) | undefined;
   private onError: ((error: any, options: any) => void) | undefined;
@@ -30,19 +29,19 @@ export class Toolkit {
     this.keepPreviousData = keepPreviousData ?? false;
   }
 
-  private registerQuery(key: string, query: Query) {
-    if (!this.queries[key]) {
-      this.queries[key] = query;
+  private registerQuery(key: QueryKey, query: Query) {
+    if (!this.queries.has(key)) {
+      this.queries.set(key, query);
     }
   }
 
   createQuery<Data = any, Options = any>(options: QueryOptions<Data, Options>) {
-    const key = stringifyKey({
+    const key = {
       baseKey: options.baseKey,
       options: options.fnOptions,
-    });
+    };
 
-    const cachedQuery = this.queries[key];
+    const cachedQuery = this.queries.get(key);
 
     if (cachedQuery) {
       return cachedQuery as Query<Data, Options>;
@@ -63,6 +62,23 @@ export class Toolkit {
 
     return newQuery;
   }
+  createSimpleQuery<Data = any, Options = any>(
+    options: QueryOptions<Data, Options>
+  ) {
+    const defaults = {
+      onSuccess: this.onSuccess,
+      onError: this.onError,
+      keepPreviousData: this.keepPreviousData,
+    };
+
+    const newQuery = new Query<Data, Options>({
+      ...defaults,
+      ...options,
+      queryCache: this.queryCache,
+    });
+
+    return newQuery;
+  }
 
   createMutation<Data = any, Options = any>(
     options: MutationOptions<Data, Options>
@@ -75,12 +91,11 @@ export class Toolkit {
   }
 
   removeQuery(key: QueryKey) {
-    const stringifiedKey = stringifyKey(key);
-    delete this.queries[stringifiedKey];
+    this.queries.delete(key);
   }
 
   reset() {
-    this.queries = {};
+    this.queries = new Map();
     this.queryCache.clear();
   }
 }

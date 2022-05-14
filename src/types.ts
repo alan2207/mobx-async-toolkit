@@ -25,7 +25,7 @@ export type MutationOptions<Data, Options = any> = {
 };
 
 export type QueryCacheOptions = {
-  queries: Record<string, Query>;
+  queries: Map<QueryKey, Query>;
   cacheTime: number;
 };
 

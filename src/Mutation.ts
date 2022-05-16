@@ -4,10 +4,9 @@ import { Status, MutationOptions } from './types';
 export class Mutation<Data = any, Options = any, Error = any> {
   status: Status = Status.IDLE;
   error: string | null = null;
-  data: Data | null = null;
   private fn: (options?: Options) => Promise<Data>;
-  private onSuccess: (data: Data, options: Options) => void;
-  private onError: (error: Error, options: Options) => void;
+  private onSuccess: (data: Data, options?: Options) => void;
+  private onError: (error: Error, options?: Options) => void;
 
   constructor({ fn, onSuccess, onError }: MutationOptions<Data>) {
     makeAutoObservable(this);
@@ -24,23 +23,23 @@ export class Mutation<Data = any, Options = any, Error = any> {
     this.error = error;
   }
 
-  isIdle() {
+  get isIdle() {
     return this.status === Status.IDLE;
   }
 
-  isSuccess() {
+  get isSuccess() {
     return this.status === Status.SUCCESS;
   }
 
-  isError() {
+  get isError() {
     return this.status === Status.ERROR;
   }
 
-  isLoading() {
+  get isLoading() {
     return this.status === Status.LOADING;
   }
 
-  async mutate(options: Options) {
+  async mutate(options?: Options) {
     try {
       this.setError(null);
       this.setStatus(Status.LOADING);

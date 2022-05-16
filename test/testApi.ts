@@ -1,7 +1,7 @@
 import { makeAutoObservable } from 'mobx';
 import { Mutation, Query, Toolkit } from '../src/index';
 
-enum TodoStatus {
+export enum TodoStatus {
   PENDING = 'Pending',
   DONE = 'Done',
 }
@@ -55,14 +55,14 @@ export class TodosModel {
 
     this.todoQuery = toolkit.createQuery<Todo, GetTodoOptions>({
       fn: apiService.getTodo,
-      baseKey: 'todo',
+      key: 'todo',
       onSuccess: loggerService.success,
       onError: loggerService.error,
     });
 
     this.todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
       fn: apiService.getTodos,
-      baseKey: 'todos',
+      key: 'todos',
       onSuccess: loggerService.success,
       onError: loggerService.error,
     });

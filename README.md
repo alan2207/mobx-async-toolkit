@@ -4,17 +4,6 @@
 
 Toolkit for handling async operations in MobX stores
 
-## Introduction
-
-Fetching and caching remote data is a tricky thing to handle. There are a lot of things that need to be considered such as all the fetching states, cache invalidation, organizing all those states in a proper way etc. Fortunately in recent years a lot of great tools that solve these problems have been made such as react-query, apollo-client, swr, urlq, redux-toolkit-query. This is a simple solution that can be used in combination with MobX. Handle your server data without leaving the MobX world. It is completely UI agnostic, all that is required is the `mobx` package as a peer dependency.
-
-## Features
-
-- Simple To Use
-- Requests Caching
-- Requests Deduping
-- TypeScript Support
-
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
@@ -34,7 +23,7 @@ It is required to have `mobx` installed.
 $ npm install mobx-async-toolkit
 ```
 
-Or if you use Yarn:
+With Yarn:
 
 ```
 $ yarn add mobx-async-toolkit
@@ -49,9 +38,7 @@ First of all, a `Toolkit` instance must be created and exported.
 
 import { createToolkit } from 'mobx-async-toolkit';
 
-export const toolkit = createToolkit({
-  isCacheEnabled: true,
-});
+export const toolkit = createToolkit();
 ```
 
 Then it can be used to create queries and mutations as following:
@@ -61,15 +48,11 @@ import { makeAutoObservable } from 'mobx';
 import {
   createTodo,
   CreateTodoOptions,
-  deleteTodo,
-  DeleteTodoOptions,
   getTodo,
   GetTodoOptions,
   getTodos,
   GetTodosOptions,
   Todo,
-  updateTodo,
-  UpdateTodoOptions,
 } from '../lib/api';
 import { toolkit } from '../lib/toolkit';
 
@@ -80,32 +63,21 @@ export class TodoStore {
 
   todoQuery = toolkit.createQuery<Todo, GetTodoOptions>({
     fn: getTodo,
-    baseKey: 'todo',
+    key: 'todo',
   });
 
   todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
     fn: getTodos,
-    baseKey: 'todos',
+    key: 'todos',
   });
 
   createTodoMutation = toolkit.createMutation<Todo, CreateTodoOptions>({
     fn: createTodo,
   });
-
-  updateTodoMutation = toolkit.createMutation<Todo[], UpdateTodoOptions>({
-    fn: updateTodo,
-  });
-
-  deleteTodoMutation = toolkit.createMutation<
-    Todo | undefined,
-    DeleteTodoOptions
-  >({
-    fn: deleteTodo,
-  });
 }
 ```
 
-Then a query can be consumed like this:
+Then a query can be consumed as following:
 
 ```ts
 const todoStore = new TodoStore();
@@ -127,12 +99,8 @@ const todoStore = new TodoStore();
 const handleSubmit = (data: CreateTodoOptions) => {
   await todoStore.createTodoMutation.mutate(data);
 
-  // invalidating a query will cause its cache
-  // to be cleared and the data to be fetched again
-
-  await toolkit.queryCache.invalidateQuery({
-    baseKey: 'todos',
-  });
+  // refetch data after a mutation:
+  await this.model.todosQuery.refetch();
 };
 
 todoStore.createTodoMutation.status;
@@ -143,25 +111,16 @@ todoStore.createTodoMutation.error;
 
 ### `createToolkit`
 
-Function that creates and returns `Toolkit`.
+Function that creates and returns a `Toolkit` instance.
 
 ```ts
 // src/lib/auth.ts
-export const toolkit = createToolkit({
-  isCacheEnabled: true,
-});
+export const toolkit = createToolkit();
 ```
-
-###### `createToolkit` options
-
-- `isCacheEnabled: boolean`
-  - if set to false, the results will not be cached
-  - every request will fetch the data from its original source
-  - defaults to true
 
 ### `Toolkit`
 
-Organizes queries, mutations and queryCache to work properly
+Organizes queries and mutations.
 
 ```ts
 // src/lib/auth.ts
@@ -170,28 +129,16 @@ export const toolkit = createToolkit();
 
 ###### `Toolkit` options
 
-- `isCacheEnabled: boolean`
-  - if set to false, the results will not be cached
-  - every request will fetch the data from its original source
-  - defaults to true
-
 A `Toolkit` instance will have the following properties and methods:
 
-- `createMutation: function`
-
-  - creates a new `Mutation` instance
-
-- `createQuery: function`
+- `createQuery: (options: QueryOptions & {key: string}) => Query`
 
   - creates a new `Query` instance
-  - if a query with the given key exists it will return the existing instance
+  - If `key` is provided, the query will be treated as a singleton.
 
-- `queryCache: QueryCache`
+- `createMutation: (options: MutationOptions) => Mutation`
 
-  - queryCache instance used by the queries
-
-- `reset: function`
-  - resets queries and queryCache
+  - creates a new `Mutation` instance
 
 ### `Query`
 
@@ -200,27 +147,24 @@ Controls and tracks the lifecycle of a query
 ```ts
 const todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
   fn: getTodos,
-  baseKey: 'todos',
+  key: 'todos',
 });
 ```
 
-###### Query Options:
+#### `QueryOptions`:
 
-- `fn: function`
+- `fn: (options?: Options) => Promise<Data>`
 
-  - function that returns promise
-  - once resolved its return value will be set as query's `data` property
+  - function that fetches data
 
-- `baseKey: string`
+  - once resolved, its return value will be set as the `data` property of the query
 
-  - key used to track queries and their cache
+- `onSuccess: (data: Data, options?: Options) => void`
 
-- `onSuccess: function`
-  - called if the query `fetch` function succeeds
-  - called with the resolved data as the first parameter and options passed to `fetch` as the second parameter
-- `onError: function`
-  - called if the query `fetch` function fails
-  - called with the error passed as the first parameter of the function
+  - called if the query succeeds
+
+- `onError: (error: Error, options?: Options) => void`
+  - called if the query fails
 
 ###### A `Query` instance will have the following properties and methods:
 
@@ -236,19 +180,26 @@ const todosQuery = toolkit.createQuery<Todo[], GetTodosOptions>({
 
   - error of a query
 
-- `fetch: function`
+- `fetch: (options?: Options) => Promise<Data | undefined>`
 
   - triggers a query to start fetching the data
 
-- `refetch: function`
+- `refetch: () => Promise<Data | undefined>`
 
-  - triggers a query to start fetching the data
-  - it will also invalidate any cached data so it will be fresh
+  - re-runs latest `fetch` call
 
-- `isIdle: () => boolean`
-- `isLoading: () => boolean`
-- `isSuccess: () => boolean`
-- `isError: () => boolean`
+- `startPolling: (interval: number, options: Options) => Promise<void>`
+
+  - fetches data on passed `interval`
+
+- `stopPolling: () => void)`
+
+  - stops polling
+
+- `isIdle: boolean`
+- `isLoading: boolean`
+- `isSuccess: boolean`
+- `isError: boolean`
 
 ### `Mutation`
 
@@ -260,25 +211,20 @@ const createTodoMutation = toolkit.createMutation<Todo, CreateTodoOptions>({
 });
 ```
 
-###### Mutation Options:
+#### `MutationOptions`:
 
-- `fn: function`
+- `fn: (options?: Options) => Promise<data | undefined>`
 
-  - function that returns promise
-  - once resolved its return value will be set as query's `data` property
+  - function that calls mutation operation
 
-- `onSuccess: function`
-  - called if the mutation `mutate` function succeeds
-  - called with the resolved data as the first parameter and options passed to `mutate` as the second parameter
-- `onError: function`
-  - called if the mutation `mutate` function fails
-  - called with the error passed as the first parameter of the function
+- `onSuccess: (data: Data, options?: Options) => void`
+
+  - called if the mutation succeeds
+
+- `onError: (error: Error, options?: Options) => void`
+  - called if the mutation fails
 
 ###### A `Mutation` instance will have the following properties and methods:
-
-- `data: Data | null`
-
-  - state of the data that is being fetched
 
 - `status: Status`
 
@@ -288,42 +234,14 @@ const createTodoMutation = toolkit.createMutation<Todo, CreateTodoOptions>({
 
   - error of a query
 
-- `mutate: function`
+- `mutate: (options?: Options): Promise<Data | undefined>`
 
-  - triggers a mutation
+  - triggers a mutation operation
 
-- `isIdle: () => boolean`
-- `isLoading: () => boolean`
-- `isSuccess: () => boolean`
-- `isError: () => boolean`
-
-### `QueryCache`
-
-Controls and tracks all the cached data
-
-A `QueryCache` instance will have the following properties and methods:
-
-- `getQueryData: function`
-
-  - returns cached data if found or `undefined` if not
-
-- `setQueryData: function`
-
-  - sets the newly fetched data in cache
-
-- `invalidateQuery: function`
-
-  - invalidates a query
-  - it will remove the cached query
-  - it will fetch again all required queries
-
-- `getEntries: function`
-
-  - returns all the cached data
-
-- `clear: function`
-
-  - clears the cached data
+- `isIdle: boolean`
+- `isLoading: boolean`
+- `isSuccess: boolean`
+- `isError: boolean`
 
 ## Contributing
 
